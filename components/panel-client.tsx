@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Image from "next/image";
 import { BookOpen, Check, GraduationCap, LayoutGrid, LogOut, Plus, Users } from "lucide-react";
 import type { Role } from "@/lib/server/db";
+import logo from "@/assets/brand/robotik-atolyeleri-logo.jpg";
 import { unsubscribeFromPushOnSignOut } from "./push-subscription-client";
 import AdminSyncStatus from "./admin-sync-status";
 
@@ -144,7 +146,7 @@ export default function PanelClient({ actor }: { actor: Actor }) {
         try { await unsubscribeFromPushOnSignOut(); } catch { /* Logout must still complete. */ }
       }
       await api("/api/auth/logout", { method: "POST" });
-      window.location.assign("/sign-in");
+      window.location.assign("/");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Çıkış yapılamadı.");
       setBusy(false);
@@ -153,7 +155,7 @@ export default function PanelClient({ actor }: { actor: Actor }) {
 
   return <div className="live-panel">
     <header className="panel-header">
-      <div className="panel-brand"><span className="panel-brand-mark">R</span><span><strong>ROBOTİK</strong><small>ATÖLYELERİ</small></span></div>
+      <div className="panel-brand"><Image className="panel-brand-logo" src={logo} alt="Robotik Atölyeleri logosu" width={37} height={37} priority /><span><strong>ROBOTİK</strong><small>ATÖLYELERİ</small></span></div>
       <div className="panel-account"><span>{actor.displayName}<small>{actor.role === "admin" ? "Yönetici" : actor.role === "teacher" ? "Öğretmen" : "Öğrenci / veli"}</small></span><button type="button" className="panel-signout" disabled={busy} onClick={() => void onSignOut()}><LogOut size={16} /> Çıkış</button></div>
     </header>
     <main className="panel-main">
