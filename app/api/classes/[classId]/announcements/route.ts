@@ -3,8 +3,10 @@ import { handleError, readJson, textField, throwDbError, uuidField } from "@/lib
 import { allRows } from "@/lib/server/pagination";
 import { requireClassReader } from "@/lib/server/phase3";
 import { processPushOutbox } from "@/lib/server/push";
+import { after } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 export async function GET(_request: Request, context: RouteContext<"/api/classes/[classId]/announcements">) {
   try {
@@ -33,11 +35,12 @@ export async function POST(request: Request, context: RouteContext<"/api/classes
       .insert({ class_id: classId, title, body: announcementBody, created_by: actor.id })
       .select("id,class_id,title,body,created_at").single();
     throwDbError(error);
-    let delivery: Awaited<ReturnType<typeof processPushOutbox>> | null = null;
-    try { delivery = await processPushOutbox(); }
-    catch (cause) {
-      console.error("Announcement was saved but push delivery is pending", cause instanceof Error ? cause.message : "unknown error");
-    }
-    return Response.json({ announcement: data, delivery }, { status: 201 });
+    after(async () => {
+      try { await processPushOutbox(); }
+      catch (cause) {
+        console.error("Announcement was saved but push delivery is pending", cause instanceof Error ? cause.message : "unknown error");
+      }
+    });
+    return Response.json({ announcement: data, delivery: { queued: true } }, { status: 201 });
   } catch (error) { return handleError(error); }
 }

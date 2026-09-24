@@ -2,11 +2,14 @@ import { requireActor } from "@/lib/server/auth";
 import { handleError, readJson, textField, throwDbError } from "@/lib/server/http";
 import { allRows, chunks } from "@/lib/server/pagination";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { db } = await requireActor(["teacher"]);
     const curricula = await allRows(async (from, to) => db.from("curricula")
       .select("id,title,active,created_at").eq("active", true).order("title").range(from, to));
+    if (new URL(request.url).searchParams.get("summary") === "1") {
+      return Response.json({ curricula: curricula.map(({ id, title }) => ({ id, title })) });
+    }
     const ids = curricula.map((item) => item.id);
     if (ids.length === 0) return Response.json({ curricula: [] });
     const topicGroups = await Promise.all(chunks(ids).map((group) => allRows(async (from, to) => db.from("topics")

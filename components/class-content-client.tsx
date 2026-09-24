@@ -108,10 +108,15 @@ export default function ClassContentClient({ classId, actor }: { classId: string
 
   function createAnnouncement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    void run(async () => {
-      await request(`/api/classes/${classId}/announcements`, "POST", announcementForm);
-      setAnnouncementForm({ title: "", body: "" });
-    }, "Duyuru sınıfın uygulama içi listesine eklendi.");
+    setBusy(true); setError(""); setNotice("");
+    void request<{ announcement: Announcement }>(`/api/classes/${classId}/announcements`, "POST", announcementForm)
+      .then(({ announcement }) => {
+        setAnnouncements((current) => [announcement, ...current]);
+        setAnnouncementForm({ title: "", body: "" });
+        setNotice("Duyuru kaydedildi; telefon bildirimleri arka planda gönderiliyor.");
+      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "Duyuru gönderilemedi."))
+      .finally(() => setBusy(false));
   }
 
   return <div id="class-content" className="learning-shell phase4-shell">

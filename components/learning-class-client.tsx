@@ -5,7 +5,7 @@ import { BookOpen, CalendarDays, Check, ClipboardCheck, GraduationCap } from "lu
 
 type Actor = { id: string; role: "teacher" | "student" };
 type Topic = { id: string; title: string; description: string; pdf_url: string | null; pdf_visible: boolean; position: number; completedAt: string | null };
-type Curriculum = { id: string; title: string; topics: { id: string; title: string; position: number }[] };
+type Curriculum = { id: string; title: string };
 type Plan = { id: string; name: string; curriculum_id: string | null; weekday: number | null; start_time: string | null; duration_minutes: number | null };
 type Lesson = { id: string; scheduled_on: string; scheduled_at: string; actual_at: string | null; duration_minutes: number; status: "planned" | "cancelled"; attendance_completed_at: string | null };
 type RosterStudent = { id: string; username: string; display_name: string; status: "var" | "yok" | null };
@@ -60,7 +60,7 @@ export default function LearningClassClient({ classId, actor }: { classId: strin
     }
     const [planResult, curriculaResult, lessonsResult, studentsResult] = await Promise.all([
       request<{ plan: Plan }>(`/api/classes/${classId}/learning-plan`),
-      request<{ curricula: Curriculum[] }>("/api/curricula"),
+      request<{ curricula: Curriculum[] }>("/api/curricula?summary=1"),
       request<{ lessons: Lesson[] }>(`/api/classes/${classId}/lessons`),
       request<{ students: { id: string; display_name: string }[] }>(`/api/classes/${classId}/students`),
     ]);
@@ -89,8 +89,10 @@ export default function LearningClassClient({ classId, actor }: { classId: strin
 
   const refreshLesson = useCallback(async () => {
     if (!selectedLessonId || actor.role !== "teacher") { setLessonDetail(null); return; }
-    setLessonDetail(await request<{ lesson: Lesson; roster: RosterStudent[] }>(
-      `/api/classes/${classId}/lessons/${selectedLessonId}`));
+    const result = await request<{ lesson: Lesson; roster: RosterStudent[] }>(
+      `/api/classes/${classId}/lessons/${selectedLessonId}`);
+    setLessonDetail(result);
+    setLessons((current) => current.map((lesson) => lesson.id === result.lesson.id ? result.lesson : lesson));
   }, [actor.role, classId, selectedLessonId]);
 
   const refreshLearning = useCallback(async () => {
@@ -110,12 +112,15 @@ export default function LearningClassClient({ classId, actor }: { classId: strin
       .catch((cause) => setError(cause instanceof Error ? cause.message : "Öğrenci verileri alınamadı."));
   }, [actor.role, refreshLearning, refreshVersion]);
 
-  async function run(action: () => Promise<void>, message: string) {
+  async function run(action: () => Promise<void>, message: string, reload?: () => Promise<void>) {
     setBusy(true); setError(""); setNotice("");
     try {
       await action();
-      await refresh();
-      setRefreshVersion((current) => current + 1);
+      if (reload) await reload();
+      else {
+        await refresh();
+        setRefreshVersion((current) => current + 1);
+      }
       setNotice(message);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "İşlem tamamlanamadı."); }
     finally { setBusy(false); }
@@ -171,9 +176,9 @@ export default function LearningClassClient({ classId, actor }: { classId: strin
         <section className="learning-card"><div className="learning-section-title"><ClipboardCheck size={19} /><h2>Yoklama</h2></div>
           {!selectedLesson ? <p className="learning-muted">Önce ders programını kaydedin.</p> : lessonDetail ? <>
             <p className="learning-muted">{lessonLabel(lessonDetail.lesson)}. Derse kayıtlı her öğrenciyi işaretleyip yoklamayı tamamlayın.</p>
-            {lessonDetail.roster.map((student) => <div className="learning-attendance-row" key={student.id}><span><strong>{student.display_name}</strong><small>@{student.username}</small></span><div className="learning-segment"><button type="button" className={student.status === "var" ? "selected" : ""} disabled={busy || !canTakeAttendance} onClick={() => void run(() => request(`/api/classes/${classId}/lessons/${selectedLesson.id}/attendance`, "POST", { studentId: student.id, status: "var" }).then(() => {}), "Yoklama güncellendi.")}>Var</button><button type="button" className={student.status === "yok" ? "selected absent" : ""} disabled={busy || !canTakeAttendance} onClick={() => void run(() => request(`/api/classes/${classId}/lessons/${selectedLesson.id}/attendance`, "POST", { studentId: student.id, status: "yok" }).then(() => {}), "Yoklama güncellendi.")}>Yok</button></div></div>)}
+            {lessonDetail.roster.map((student) => <div className="learning-attendance-row" key={student.id}><span><strong>{student.display_name}</strong><small>@{student.username}</small></span><div className="learning-segment"><button type="button" className={student.status === "var" ? "selected" : ""} disabled={busy || !canTakeAttendance} onClick={() => void run(() => request(`/api/classes/${classId}/lessons/${selectedLesson.id}/attendance`, "POST", { studentId: student.id, status: "var" }).then(() => {}), "Yoklama güncellendi.", refreshLesson)}>Var</button><button type="button" className={student.status === "yok" ? "selected absent" : ""} disabled={busy || !canTakeAttendance} onClick={() => void run(() => request(`/api/classes/${classId}/lessons/${selectedLesson.id}/attendance`, "POST", { studentId: student.id, status: "yok" }).then(() => {}), "Yoklama güncellendi.", refreshLesson)}>Yok</button></div></div>)}
             {lessonDetail.roster.length === 0 && <p className="learning-muted">Bu ders tarihinde kayıtlı öğrenci yok.</p>}
-            {canTakeAttendance && !lessonDetail.lesson.attendance_completed_at && <button type="button" className="primary-button learning-finalize" disabled={busy || lessonDetail.roster.length === 0 || lessonDetail.roster.some((student) => !student.status)} onClick={() => void run(() => request(`/api/classes/${classId}/lessons/${selectedLesson.id}/attendance`, "POST", { finalize: true }).then(() => {}), "Yoklama tamamlandı; devam oranları güncellendi.")}>Yoklamayı tamamla</button>}
+            {canTakeAttendance && !lessonDetail.lesson.attendance_completed_at && <button type="button" className="primary-button learning-finalize" disabled={busy || lessonDetail.roster.length === 0 || lessonDetail.roster.some((student) => !student.status)} onClick={() => void run(() => request(`/api/classes/${classId}/lessons/${selectedLesson.id}/attendance`, "POST", { finalize: true }).then(() => {}), "Yoklama tamamlandı; devam oranları güncellendi.", async () => { await Promise.all([refreshLesson(), refreshLearning()]); })}>Yoklamayı tamamla</button>}
             {!canTakeAttendance && <p className="learning-muted">Yoklama ders başladıktan sonra işaretlenebilir.</p>}
           </> : <p className="learning-muted">Ders ayrıntısı yükleniyor…</p>}
         </section>
@@ -181,7 +186,7 @@ export default function LearningClassClient({ classId, actor }: { classId: strin
           {students.length === 0 ? <p className="learning-muted">Bu sınıfta henüz öğrenci yok.</p> : <><label className="learning-picker">Öğrenci seç<select value={selectedStudentId} onChange={(event) => setSelectedStudentId(event.target.value)}>{students.map((student) => <option key={student.id} value={student.id}>{student.display_name}</option>)}</select></label>{learning ? <>
             <div className="learning-stats"><div><strong>{completedTopics}/{totalTopics}</strong><span>Tamamlanan konu</span></div><div><strong>{completedLessons ? `%${Math.round(presentLessons / completedLessons * 100)}` : "—"}</strong><span>Devam oranı ({presentLessons}/{completedLessons})</span></div></div>
             <h3>{learning.curriculum?.title ?? "Müfredat seçilmedi"}</h3>
-            {learning.topics.map((topic) => <div className="learning-topic-detail" key={topic.id}><label className="learning-topic-check"><input type="checkbox" checked={Boolean(topic.completedAt)} disabled={busy} onChange={(event) => void run(() => request(`/api/classes/${classId}/students/${selectedStudentId}/topics/${topic.id}`, "POST", { complete: event.target.checked }).then(() => {}), "Konu ilerlemesi güncellendi.")} /><strong>{topic.title}</strong></label>{topic.description && <p>{topic.description}</p>}{topic.pdf_url && <a className="learning-link" href={topic.pdf_url} target="_blank" rel="noopener noreferrer">Ders kazanım PDF’ini aç ↗</a>}{!topic.pdf_visible && topic.pdf_url && <small className="learning-muted">PDF öğrencilere kapalı.</small>}</div>)}
+            {learning.topics.map((topic) => <div className="learning-topic-detail" key={topic.id}><label className="learning-topic-check"><input type="checkbox" checked={Boolean(topic.completedAt)} disabled={busy} onChange={(event) => void run(() => request(`/api/classes/${classId}/students/${selectedStudentId}/topics/${topic.id}`, "POST", { complete: event.target.checked }).then(() => {}), "Konu ilerlemesi güncellendi.", refreshLearning)} /><strong>{topic.title}</strong></label>{topic.description && <p>{topic.description}</p>}{topic.pdf_url && <a className="learning-link" href={topic.pdf_url} target="_blank" rel="noopener noreferrer">Ders kazanım PDF’ini aç ↗</a>}{!topic.pdf_visible && topic.pdf_url && <small className="learning-muted">PDF öğrencilere kapalı.</small>}</div>)}
             {learning.topics.length === 0 && <p className="learning-muted">Henüz konu başlığı yok.</p>}
           </> : <p className="learning-muted">İlerleme yükleniyor…</p>}</>}
         </section>

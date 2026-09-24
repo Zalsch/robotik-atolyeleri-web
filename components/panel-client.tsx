@@ -39,41 +39,55 @@ export default function PanelClient({ actor }: { actor: Actor }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [studentsLoading, setStudentsLoading] = useState(false);
   const [newClassTeacherIds, setNewClassTeacherIds] = useState<string[]>([]);
   const [editingClassId, setEditingClassId] = useState("");
   const [editTeacherIds, setEditTeacherIds] = useState<string[]>([]);
   const [studentMode, setStudentMode] = useState<"new" | "existing">("new");
   const [passwordTarget, setPasswordTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const refresh = useCallback(async () => {
-    const classesResult = await api<{ classes: SchoolClass[] }>("/api/classes");
+  const refreshBase = useCallback(async () => {
+    const [classesResult, teachersResult] = await Promise.all([
+      api<{ classes: SchoolClass[] }>("/api/classes"),
+      actor.role === "admin" ? api<{ teachers: Teacher[] }>("/api/teachers") : Promise.resolve(null),
+    ]);
     setClasses(classesResult.classes);
-    if (actor.role === "admin") {
-      const teachersResult = await api<{ teachers: Teacher[] }>("/api/teachers");
+    if (teachersResult) {
       setTeachers(teachersResult.teachers);
     }
     if (actor.role === "teacher") {
-      const classId = selectedClassId && classesResult.classes.some((item) => item.id === selectedClassId)
-        ? selectedClassId : classesResult.classes[0]?.id ?? "";
-      setSelectedClassId(classId);
-      if (classId) {
-        const studentsResult = await api<{ students: Student[] }>(`/api/classes/${classId}/students`);
-        setStudents(studentsResult.students);
-      } else setStudents([]);
+      setSelectedClassId((current) => classesResult.classes.some((item) => item.id === current)
+        ? current : classesResult.classes[0]?.id ?? "");
     }
+  }, [actor.role]);
+
+  const refreshStudents = useCallback(async () => {
+    if (actor.role !== "teacher" || !selectedClassId) { setStudents([]); return; }
+    const result = await api<{ students: Student[] }>(`/api/classes/${selectedClassId}/students`);
+    setStudents(result.students);
   }, [actor.role, selectedClassId]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.resolve().then(() => refresh())
+    Promise.resolve().then(() => refreshBase())
       .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Veriler alınamadı."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [refresh]);
+  }, [refreshBase]);
 
-  async function run(action: () => Promise<unknown>, success: string) {
+  useEffect(() => {
+    if (actor.role !== "teacher" || !selectedClassId) { setStudents([]); return; }
+    let cancelled = false;
+    setStudentsLoading(true);
+    void refreshStudents()
+      .catch((cause) => { if (!cancelled) setError(cause instanceof Error ? cause.message : "Öğrenciler alınamadı."); })
+      .finally(() => { if (!cancelled) setStudentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [actor.role, refreshStudents, selectedClassId]);
+
+  async function run(action: () => Promise<unknown>, success: string, reload: () => Promise<void> = refreshBase) {
     setBusy(true); setError(""); setNotice("");
-    try { await action(); await refresh(); setNotice(success); }
+    try { await action(); await reload(); setNotice(success); }
     catch (cause) { setError(cause instanceof Error ? cause.message : "İşlem tamamlanamadı."); }
     finally { setBusy(false); }
   }
@@ -109,7 +123,7 @@ export default function PanelClient({ actor }: { actor: Actor }) {
     void run(async () => {
       await api(`/api/classes/${selectedClassId}/students`, jsonRequest("POST", payload));
       form.reset();
-    }, studentMode === "new" ? "Öğrenci hesabı ve sınıf kaydı oluşturuldu." : "Mevcut öğrenci sınıfa eklendi.");
+    }, studentMode === "new" ? "Öğrenci hesabı ve sınıf kaydı oluşturuldu." : "Mevcut öğrenci sınıfa eklendi.", refreshStudents);
   }
 
   function onResetPassword(event: FormEvent<HTMLFormElement>) {
@@ -120,7 +134,7 @@ export default function PanelClient({ actor }: { actor: Actor }) {
     void run(async () => {
       await api(`/api/users/${target.id}/password`, jsonRequest("POST", { password: passwordValue(form) }));
       setPasswordTarget(null);
-    }, `${target.name} için yeni şifre kaydedildi. Şifreyi güvenli biçimde iletin.`);
+    }, `${target.name} için yeni şifre kaydedildi. Şifreyi güvenli biçimde iletin.`, async () => {});
   }
 
   async function onSignOut() {
@@ -158,7 +172,7 @@ export default function PanelClient({ actor }: { actor: Actor }) {
         <div className="panel-class-picker"><label>Sınıf seç<select value={selectedClassId} onChange={(event) => setSelectedClassId(event.target.value)}>{classes.map((schoolClass) => <option key={schoolClass.id} value={schoolClass.id}>{schoolClass.name}</option>)}</select></label></div>
         <div className="panel-phase3-links"><a href="/panel/curricula">Ortak müfredatlar</a>{selectedClassId && <a href={`/panel/classes/${selectedClassId}`}>Dersler, ödevler ve duyurular →</a>}</div>
         {selectedClassId ? <div className="panel-grid"><section className="surface-card panel-card"><div className="panel-card-title"><span className="stat-icon blue"><GraduationCap size={20} /></span><div><h2>Öğrenci ekle</h2><p>Yeni hesap açın veya mevcut hesabı sınıfa alın.</p></div></div><div className="panel-mode"><button type="button" className={studentMode === "new" ? "active" : ""} onClick={() => setStudentMode("new")}>Yeni hesap</button><button type="button" className={studentMode === "existing" ? "active" : ""} onClick={() => setStudentMode("existing")}>Mevcut hesap</button></div><form className="panel-form" onSubmit={onAddStudent}>{studentMode === "new" && <label>Ad soyad<input name="displayName" required minLength={2} maxLength={120} placeholder="Örn. Ada Yılmaz" /></label>}<label>Kullanıcı adı<input name="username" required pattern="[a-zA-Z0-9._-]{3,32}" placeholder="ada.yilmaz" /></label>{studentMode === "new" && <label>İlk şifre<input name="password" type="password" required minLength={12} autoComplete="new-password" placeholder="En az 12 karakter" /></label>}<button className="primary-button" disabled={busy}><Plus size={17} /> {studentMode === "new" ? "Öğrenci hesabı aç" : "Sınıfa ekle"}</button></form></section>
-        <section className="surface-card panel-card"><div className="panel-list-heading"><h2>Öğrenciler</h2><span>{students.length} öğrenci</span></div>{students.length === 0 ? <p className="panel-empty">Bu sınıfta henüz öğrenci yok.</p> : students.map((student) => <div className="panel-list-row" key={student.id}><span className="panel-row-icon"><GraduationCap size={18} /></span><span className="panel-row-copy"><strong>{student.display_name}</strong><small>@{student.username}</small></span><div className="panel-row-actions"><button type="button" onClick={() => setPasswordTarget({ id: student.id, name: student.display_name })}>Şifre yenile</button><button type="button" disabled={busy} onClick={() => { if (window.confirm(`${student.display_name} sınıftan çıkarılsın mı? Geçmiş kayıtları korunur.`)) void run(async () => { await api(`/api/classes/${selectedClassId}/students/${student.id}`, { method: "DELETE" }); }, "Öğrenci sınıftan çıkarıldı."); }}>Sınıftan çıkar</button></div></div>)}</section></div> : <div className="surface-card panel-empty">Henüz atandığınız sınıf yok. Yöneticinizden sınıf ataması isteyin.</div>}
+        <section className="surface-card panel-card"><div className="panel-list-heading"><h2>Öğrenciler</h2><span>{students.length} öğrenci</span></div>{studentsLoading ? <p className="panel-empty">Öğrenciler yükleniyor…</p> : students.length === 0 ? <p className="panel-empty">Bu sınıfta henüz öğrenci yok.</p> : students.map((student) => <div className="panel-list-row" key={student.id}><span className="panel-row-icon"><GraduationCap size={18} /></span><span className="panel-row-copy"><strong>{student.display_name}</strong><small>@{student.username}</small></span><div className="panel-row-actions"><button type="button" onClick={() => setPasswordTarget({ id: student.id, name: student.display_name })}>Şifre yenile</button><button type="button" disabled={busy} onClick={() => { if (window.confirm(`${student.display_name} sınıftan çıkarılsın mı? Geçmiş kayıtları korunur.`)) void run(async () => { await api(`/api/classes/${selectedClassId}/students/${student.id}`, { method: "DELETE" }); }, "Öğrenci sınıftan çıkarıldı.", refreshStudents); }}>Sınıftan çıkar</button></div></div>)}</section></div> : <div className="surface-card panel-empty">Henüz atandığınız sınıf yok. Yöneticinizden sınıf ataması isteyin.</div>}
       </> : <section className="surface-card panel-card"><div className="panel-list-heading"><h2>Kayıtlı sınıflarım</h2><span>{classes.length} sınıf</span></div>{classes.length === 0 ? <p className="panel-empty">Henüz bir sınıfa kayıtlı değilsiniz.</p> : classes.map((schoolClass) => <div className="panel-list-row" key={schoolClass.id}><span className="panel-row-icon"><BookOpen size={18} /></span><span className="panel-row-copy"><strong>{schoolClass.name}</strong><small>Etkin kayıt</small></span><a className="panel-class-link" href={`/panel/classes/${schoolClass.id}`}>İlerlemeyi gör →</a></div>)}</section>}
       {passwordTarget && <div className="panel-modal-backdrop"><div className="panel-modal" role="dialog" aria-modal="true" aria-labelledby="password-title"><h2 id="password-title">Şifre yenile</h2><p>{passwordTarget.name} için yeni şifre belirleyin. Eski şifre gösterilmez.</p><form className="panel-form" onSubmit={onResetPassword}><label>Yeni şifre<input name="password" type="password" required minLength={12} autoComplete="new-password" /></label><div className="panel-modal-actions"><button type="button" className="secondary-button" onClick={() => setPasswordTarget(null)}>Vazgeç</button><button type="submit" className="primary-button" disabled={busy}>Şifreyi kaydet</button></div></form></div></div>}
     </main>
