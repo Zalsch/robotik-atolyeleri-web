@@ -1,0 +1,38 @@
+{
+  "name": "robotik-atolyeleri",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "check:schema": "node scripts/check-schema.mjs",
+    "check:sheet-layout": "node scripts/check-sheet-layout.mjs",
+    "check:live-auth": "node --env-file=.env.local scripts/check-live-auth.mjs",
+    "check:live-phase3": "node --env-file=.env.local scripts/check-phase3-live.mjs",
+    "check:live-phase4": "node --env-file=.env.local scripts/check-phase4-live.mjs",
+    "bootstrap:admin": "node --env-file=.env.local scripts/bootstrap-admin.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.116.0",
+    "argon2": "0.45.1",
+    "google-auth-library": "11.1.0",
+    "iron-session": "9.0.1",
+    "lucide-react": "^0.468.0",
+    "next": "^16.3.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "server-only": "0.0.1",
+    "web-push": "3.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/web-push": "3.6.4",
+    "supabase": "2.117.0",
+    "typescript": "^5.9.0"
+  }
+}

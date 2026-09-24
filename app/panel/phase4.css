@@ -1,0 +1,19 @@
+.phase4-shell{padding-top:0}
+.phase4-shell .learning-heading h2{font-size:26px;margin:8px 0}
+.phase4-shell .learning-form{padding:15px;background:#f8faff;border:1px solid #e8ecf6;border-radius:12px;margin-bottom:20px}
+.phase4-shell .learning-form h3{margin:0}
+.phase4-shell textarea{width:100%;min-width:0;border:1px solid #dce3ee;border-radius:9px;padding:10px 11px;background:#fff;color:#26314f;font:inherit;font-size:14px;resize:vertical}
+.phase4-shell textarea:focus{outline:3px solid #e5eaff;border-color:#6880db}
+.phase4-list{display:grid;gap:10px}
+.phase4-item{border:1px solid #e8ecf6;border-radius:11px;padding:14px;background:#fff;min-width:0}
+.phase4-item-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.phase4-item strong{font-size:14px}
+.phase4-item small{display:block;color:#77839a;margin-top:5px}
+.phase4-item .learning-muted{margin:6px 0}
+.phase4-description{font-size:13px;line-height:1.55;color:#34405f;white-space:pre-wrap;overflow-wrap:anywhere}
+.phase4-item .learning-link{display:inline-flex;align-items:center;gap:5px;margin:7px 12px 2px 0}
+.phase4-status{font-size:11px;font-weight:800;border-radius:7px;padding:5px 8px}
+.phase4-status.getirdi{background:#eaf7ef;color:#206d45}.phase4-status.getirmedi{background:#fff0ee;color:#aa4c42}.phase4-status.pending{background:#eef2fa;color:#62718d}
+.phase4-detail{border-top:1px solid #e8ecf6;margin-top:20px;padding-top:8px}
+.phase4-detail details{margin-top:16px}.phase4-detail summary{cursor:pointer;color:#344fc4;font-size:13px;font-weight:800}
+@media(max-width:800px){.phase4-shell .learning-heading h2{font-size:23px}}
