@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { BookOpen, Check, Plus } from "lucide-react";
 
 type Topic = { id: string; title: string; description: string; pdf_url: string | null; pdf_visible: boolean; position: number };
@@ -106,7 +107,7 @@ export default function CurriculaClient() {
 
   return <div className="learning-page">
     <div className="learning-shell">
-      <a className="learning-back" href="/panel">← Sınıflarıma dön</a>
+      <Link className="learning-back" href="/panel">← Dashboard’a dön</Link>
       <div className="learning-heading"><span className="eyebrow">ORTAK İÇERİK</span><h1>Müfredatlar</h1><p>Konu başlığı, kısa açıklama ve PDF bağlantısı ekleyin. PDF görünürlüğü bu müfredatı kullanan tüm sınıflarda birlikte değişir.</p></div>
       {error && <div className="panel-alert error" role="alert">{error}</div>}
       {notice && <div className="panel-alert success" role="status"><Check size={16} /> {notice}</div>}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { BookOpen, CalendarDays, Check, ClipboardCheck, GraduationCap } from "lucide-react";
+import Link from "next/link";
 
 type Actor = { id: string; role: "teacher" | "student" };
 type Topic = { id: string; title: string; description: string; pdf_url: string | null; pdf_visible: boolean; position: number; completedAt: string | null };
@@ -34,7 +35,7 @@ function lessonLabel(lesson: Lesson) {
   return `${lessonDate(lesson)}${lesson.status === "cancelled" ? " · İptal" : lesson.actual_at ? " · Taşındı" : ""}${lesson.attendance_completed_at ? " · Yoklama tamam" : ""}`;
 }
 
-export default function LearningClassClient({ classId, actor }: { classId: string; actor: Actor }) {
+export default function LearningClassClient({ classId, actor, onOpenContent }: { classId: string; actor: Actor; onOpenContent?: () => void }) {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [curricula, setCurricula] = useState<Curriculum[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -147,8 +148,8 @@ export default function LearningClassClient({ classId, actor }: { classId: strin
   const presentLessons = Number(learning?.summary.present_lessons ?? 0);
 
   return <div><div className="learning-shell">
-    <a className="learning-back" href="/panel">← Sınıflarıma dön</a>
-    <div className="learning-heading"><span className="eyebrow">{actor.role === "teacher" ? "ÖĞRETMEN · SINIF" : "ÖĞRENCİ / VELİ · SINIF"}</span><h1>{plan?.name ?? "Sınıf ayrıntısı"}</h1><p>{actor.role === "teacher" ? "Müfredatı, dersleri ve öğrenci ilerlemesini yönetin." : "Ders programınızı, konu ilerlemenizi ve yoklamanızı görün."}</p><a className="learning-link learning-jump" href="#class-content">Ödevler ve duyurular ↓</a></div>
+    <Link className="learning-back" href="/panel">← Dashboard’a dön</Link>
+    <div className="learning-heading"><span className="eyebrow">{actor.role === "teacher" ? "ÖĞRETMEN · SINIF" : "ÖĞRENCİ / VELİ · SINIF"}</span><h1>{plan?.name ?? "Sınıf ayrıntısı"}</h1><p>{actor.role === "teacher" ? "Müfredatı, dersleri ve öğrenci ilerlemesini yönetin." : "Ders programınızı, konu ilerlemenizi ve yoklamanızı görün."}</p><button type="button" className="learning-text-button learning-jump" onClick={onOpenContent}>Ödevler ve duyurular →</button></div>
     {error && <div className="panel-alert error" role="alert">{error}</div>}
     {notice && <div className="panel-alert success" role="status"><Check size={16} /> {notice}</div>}
     {loading ? <div className="learning-card">Yükleniyor…</div> : actor.role === "teacher" ? <>
