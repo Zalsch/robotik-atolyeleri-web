@@ -1,11 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import Image from "next/image";
-import { BookOpen, Check, GraduationCap, LayoutGrid, LogOut, Plus, Users } from "lucide-react";
+import { BookOpen, Check, GraduationCap, LayoutGrid, Plus, Users } from "lucide-react";
 import type { Role } from "@/lib/server/db";
-import logo from "@/assets/brand/robotik-atolyeleri-logo.jpg";
-import { unsubscribeFromPushOnSignOut } from "./push-subscription-client";
+import PanelHeader from "./panel-header";
 import AdminSyncStatus from "./admin-sync-status";
 
 type Actor = { id: string; role: Role; username: string; displayName: string };
@@ -139,25 +137,8 @@ export default function PanelClient({ actor }: { actor: Actor }) {
     }, `${target.name} için yeni şifre kaydedildi. Şifreyi güvenli biçimde iletin.`, async () => {});
   }
 
-  async function onSignOut() {
-    setBusy(true); setError("");
-    try {
-      if (actor.role === "student") {
-        try { await unsubscribeFromPushOnSignOut(); } catch { /* Logout must still complete. */ }
-      }
-      await api("/api/auth/logout", { method: "POST" });
-      window.location.assign("/");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Çıkış yapılamadı.");
-      setBusy(false);
-    }
-  }
-
   return <div className="live-panel">
-    <header className="panel-header">
-      <div className="panel-brand"><Image className="panel-brand-logo" src={logo} alt="Robotik Atölyeleri logosu" width={37} height={37} priority /><span><strong>ROBOTİK</strong><small>ATÖLYELERİ</small></span></div>
-      <div className="panel-account"><span>{actor.displayName}<small>{actor.role === "admin" ? "Yönetici" : actor.role === "teacher" ? "Öğretmen" : "Öğrenci / veli"}</small></span><button type="button" className="panel-signout" disabled={busy} onClick={() => void onSignOut()}><LogOut size={16} /> Çıkış</button></div>
-    </header>
+    <PanelHeader actor={actor} />
     <main className="panel-main">
       <div className="panel-heading"><span className="eyebrow">CANLI UYGULAMA</span><h1>{actor.role === "admin" ? "Kurum yönetimi" : actor.role === "teacher" ? "Sınıflarım" : "Sınıfım"}</h1><p>{actor.role === "admin" ? "Öğretmen hesaplarını ve sınıfları yönetin." : actor.role === "teacher" ? "Öğrencileri, dersleri, ödevleri ve duyuruları yönetin." : "Derslerinizi, ödevlerinizi ve duyuruları görün."}</p></div>
       {error && <div className="panel-alert error" role="alert">{error}</div>}

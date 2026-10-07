@@ -5,6 +5,7 @@ import { HttpError } from "@/lib/server/http";
 import { requireClassReader } from "@/lib/server/phase3";
 import LearningClassClient from "@/components/learning-class-client";
 import ClassContentClient from "@/components/class-content-client";
+import PanelHeader from "@/components/panel-header";
 import "../../panel.css";
 import "../../learning.css";
 import "../../phase4.css";
@@ -18,10 +19,10 @@ export default async function LearningClassPage({ params }: { params: Promise<{ 
     if (actor.role === "admin") redirect("/panel");
     await requireClassReader(db, actor, classId);
     const clientActor = { id: actor.id, role: actor.role === "teacher" ? "teacher" : "student" } as const;
-    return <main className="learning-page">
+    return <><PanelHeader actor={{ id: actor.id, role: actor.role, username: actor.username, displayName: actor.display_name }} /><main className="learning-page">
       <LearningClassClient classId={classId} actor={clientActor} />
       <ClassContentClient classId={classId} actor={clientActor} />
-    </main>;
+    </main></>;
   } catch (error) {
     if (error instanceof HttpError && error.status === 401) redirect("/sign-in");
     if (error instanceof HttpError && error.status === 403) redirect("/panel");
