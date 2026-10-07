@@ -188,6 +188,18 @@ try {
     "select * from public.award_aquarium_points($1,$2,$3,4,$4)", [teacher1, classId, studentId, rewardId]));
   const secondReward = await db.query("select * from public.award_aquarium_points($1,$2,$3,2,$4)", [teacher2, classId, studentId, "00000000-0000-4000-8000-000000000022"]);
   if (Number(secondReward.rows[0].total_points) !== 5) throw new Error("Co-teacher award lost points");
+  const deductionId = "00000000-0000-4000-8000-000000000023";
+  await expectFailure("student deducts aquarium points", () => db.query(
+    "select * from public.deduct_aquarium_points($1,$2,$3,2,$4)", [studentId, classId, studentId, deductionId]));
+  await expectFailure("unassigned teacher deducts aquarium points", () => db.query(
+    "select * from public.deduct_aquarium_points($1,$2,$3,2,$4)", [teacher3, classId, studentId, deductionId]));
+  const deduction = await db.query("select * from public.deduct_aquarium_points($1,$2,$3,2,$4)", [teacher1, classId, studentId, deductionId]);
+  const deductionRetry = await db.query("select * from public.deduct_aquarium_points($1,$2,$3,2,$4)", [teacher1, classId, studentId, deductionId]);
+  if (Number(deduction.rows[0].total_points) !== 3 || Number(deductionRetry.rows[0].total_points) !== 3 || deduction.rows[0].awarded_points !== -2) throw new Error("Deduction audit or idempotency failed");
+  await expectFailure("deduct below zero", () => db.query(
+    "select * from public.deduct_aquarium_points($1,$2,$3,4,$4)", [teacher1, classId, studentId, "00000000-0000-4000-8000-000000000024"]));
+  const preservedScore = await db.query("select points from public.aquarium_scores where class_id=$1 and student_id=$2", [classId, studentId]);
+  if (Number(preservedScore.rows[0].points) !== 3) throw new Error("Rejected deduction changed score");
   const aquariumRls = await db.query("select relrowsecurity from pg_class where oid in ('public.aquarium_scores'::regclass,'public.aquarium_rewards'::regclass)");
   if (aquariumRls.rows.some(row => !row.relrowsecurity)) throw new Error("Aquarium tables require RLS");
 
@@ -262,6 +274,8 @@ try {
   await expectFailure("anonymous aquarium score read", () => db.query("select * from public.aquarium_scores"));
   await expectFailure("anonymous aquarium award", () => db.query(
     "select * from public.award_aquarium_points($1,$2,$3,3,$4)", [teacher1, classId, studentId, rewardId]));
+  await expectFailure("anonymous aquarium deduction", () => db.query(
+    "select * from public.deduct_aquarium_points($1,$2,$3,1,$4)", [teacher1, classId, studentId, deductionId]));
   await db.exec("reset role");
 
   console.log("Schema checks passed: accounts, learning, outbox retry/version, push eligibility, role boundaries and anonymous denial.");

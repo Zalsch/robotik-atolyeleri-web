@@ -12,6 +12,12 @@ export async function GET(_request: Request, context: RouteContext<"/api/classes
 }
 
 export async function POST(request: Request, context: RouteContext<"/api/classes/[classId]/aquarium">) {
+  return changePoints(request, context, false);
+}
+export async function DELETE(request: Request, context: RouteContext<"/api/classes/[classId]/aquarium">) {
+  return changePoints(request, context, true);
+}
+async function changePoints(request: Request, context: RouteContext<"/api/classes/[classId]/aquarium">, remove: boolean) {
   try {
     const { actor, db } = await requireActor(["teacher"]);
     const { classId } = await context.params;
@@ -23,9 +29,10 @@ export async function POST(request: Request, context: RouteContext<"/api/classes
     if (typeof body.points !== "number" || !Number.isInteger(body.points) || body.points < 1 || body.points > 10) {
       throw new HttpError(400, "Puan 1–10 arası bir tam sayı olmalı.");
     }
-    const { data, error } = await db.rpc("award_aquarium_points", {
+    const { data, error } = await db.rpc(remove ? "deduct_aquarium_points" : "award_aquarium_points", {
       p_teacher_id: actor.id, p_class_id: classId, p_student_id: studentId, p_points: body.points, p_request_id: requestId,
     });
+    if (error?.message.includes("insufficient aquarium points")) throw new HttpError(400, "Öğrencinin bu kadar puanı yok.");
     throwDbError(error);
     const row = data?.[0];
     if (!row) throw new Error("Award returned no result");

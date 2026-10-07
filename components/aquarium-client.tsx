@@ -41,7 +41,8 @@ function AquariumView({ classId }: { classId: string }) {
   const busyRef = useRef(false);
   const aliveRef = useRef(true);
   const postAbortRef = useRef<AbortController | null>(null);
-  const retryRef = useRef<{ studentId: string; points: number; requestId: string } | null>(null);
+  const scoreRevisionRef = useRef(0);
+  const retryRef = useRef<{ studentId: string; points: number; requestId: string; remove: boolean } | null>(null);
   const refreshRef = useRef<(() => Promise<void>) | null>(null);
   const path = `/api/classes/${encodeURIComponent(classId)}/aquarium`;
 
@@ -56,23 +57,21 @@ function AquariumView({ classId }: { classId: string }) {
     let closed = false, inFlight = false, initialized = false;
     let controller: AbortController | null = null;
     const refresh = async () => {
-      if (closed || inFlight || document.hidden) return;
+      if (closed || inFlight || busyRef.current || document.hidden) return;
+      const revision = scoreRevisionRef.current;
       inFlight = true; controller = new AbortController();
       try {
         const response = await fetch(path, { cache: "no-store", signal: controller.signal });
         const body = await response.json();
         if (!response.ok) throw new Error(body.error ?? "Akvaryum yüklenemedi.");
-        if (closed) return;
+        if (closed || revision !== scoreRevisionRef.current) return;
         const next = body as Aquarium;
         for (const reward of next.rewards) {
           if (initialized && !seenRef.current.has(reward.id)) incomingRef.current.push(reward);
           seenRef.current.add(reward.id);
         }
         initialized = true;
-        setData((current) => {
-          const totals = new Map(current?.students.map((student) => [student.id, student.points]));
-          return { ...next, students: next.students.map((student) => ({ ...student, points: Math.max(student.points, totals.get(student.id) ?? 0) })) };
-        });
+        setData(next);
         setStudentId((current) => next.students.some((student) => student.id === current) ? current : next.students[0]?.id ?? "");
         setError("");
       } catch (failure) {
@@ -96,24 +95,27 @@ function AquariumView({ classId }: { classId: string }) {
     for (const reward of incomingRef.current.splice(0)) motionRef.current?.reward(reward.studentId, reward.points);
   }, [data]);
 
-  async function award(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function award(event?: FormEvent<HTMLFormElement>, remove = false) {
+    event?.preventDefault();
     if (!data?.canAward || busyRef.current || !studentId || !Number.isInteger(points) || points < 1 || points > 10) return;
+    if (remove && !window.confirm(`${data.students.find((student) => student.id === studentId)?.name ?? "Öğrencinin"} hesabından ${points} puan silinsin mi?`)) return;
+    scoreRevisionRef.current++;
     busyRef.current = true; setBusy(true); setError(""); setNotice("");
-    const pending = retryRef.current?.studentId === studentId && retryRef.current.points === points ? retryRef.current : { studentId, points, requestId: crypto.randomUUID() };
+    const pending = retryRef.current?.studentId === studentId && retryRef.current.points === points && retryRef.current.remove === remove ? retryRef.current : { studentId, points, requestId: crypto.randomUUID(), remove };
     retryRef.current = pending;
     const controller = new AbortController(); postAbortRef.current = controller;
     try {
-      const response = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending), signal: controller.signal });
+      const response = await fetch(path, { method: remove ? "DELETE" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(pending), signal: controller.signal });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Puan eklenemedi.");
       if (!aliveRef.current) return;
       const result = body as AwardResult;
       retryRef.current = null;
-      if (!seenRef.current.has(result.reward.id)) { seenRef.current.add(result.reward.id); incomingRef.current.push(result.reward); }
-      setData((current) => current ? { ...current, students: current.students.map((student) => student.id === result.reward.studentId ? { ...student, points: Math.max(student.points, result.totalPoints) } : student) } : current);
+      scoreRevisionRef.current++;
+      if (result.reward.points > 0 && !seenRef.current.has(result.reward.id)) { seenRef.current.add(result.reward.id); incomingRef.current.push(result.reward); }
+      setData((current) => current ? { ...current, students: current.students.map((student) => student.id === result.reward.studentId ? { ...student, points: result.totalPoints } : student) } : current);
       const name = data.students.find((student) => student.id === result.reward.studentId)?.name ?? "Öğrenci";
-      setNotice(`${name}: ${points} puan eklendi. Balığı yemini otomatik alıyor.`);
+      setNotice(remove ? `${name}: ${points} puan silindi.` : `${name}: ${points} puan eklendi. Balığı yemini otomatik alıyor.`);
     } catch (failure) {
       if (aliveRef.current && !(failure instanceof DOMException && failure.name === "AbortError")) setError(`${failure instanceof Error ? failure.message : "Puan eklenemedi."} Aynı işlemi tekrar deneyebilirsiniz.`);
     } finally { busyRef.current = false; if (aliveRef.current) setBusy(false); }
@@ -147,7 +149,7 @@ function AquariumView({ classId }: { classId: string }) {
     </section>
     <div className={`aq-bottom${data?.canAward ? " aq-bottom-teacher" : ""}`}>
       <section className="aq-card"><h2>Akvaryum ekibi</h2><div className="aq-roster">{data?.students.map((student) => <div className="aq-roster-row" key={student.id}><span className="aq-mini-fish"><FishArt type={student.type} color={student.color} /></span><strong>{displayName(student)}</strong><span>{student.points.toLocaleString("tr-TR")} puan</span></div>)}</div></section>
-      {data?.canAward && <section className="aq-card"><span className="eyebrow">ÖĞRETMEN PANELİ</span><h2>Puan ekle</h2><p>Öğrencini seç. Puanı eklensin, balığı ödülünü alsın.</p><form className="aq-award-form" onSubmit={award}><label htmlFor="aq-student">Öğrenci</label><select id="aq-student" value={studentId} disabled={busy || !data.students.length} onChange={(event) => { setStudentId(event.target.value); retryRef.current = null; }}>{data.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select><label htmlFor="aq-points">Puan</label><input id="aq-points" type="number" min={1} max={10} step={1} required value={points} disabled={busy} onChange={(event) => { setPoints(Number(event.target.value)); retryRef.current = null; }} /><button className="primary-button" type="submit" disabled={busy || !studentId || !Number.isInteger(points) || points < 1 || points > 10}><Sparkles size={16} />{busy ? "Ekleniyor…" : "Puan ekle"}</button></form></section>}
+      {data?.canAward && <section className="aq-card"><span className="eyebrow">ÖĞRETMEN PANELİ</span><h2>Puan yönetimi</h2><p>Öğrencini seç; puan ekle veya yanlış eklenen puanı sil.</p><form className="aq-award-form" onSubmit={award}><label htmlFor="aq-student">Öğrenci</label><select id="aq-student" value={studentId} disabled={busy || !data.students.length} onChange={(event) => { setStudentId(event.target.value); retryRef.current = null; }}>{data.students.map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select><label htmlFor="aq-points">Puan</label><input id="aq-points" type="number" min={1} max={10} step={1} required value={points} disabled={busy} onChange={(event) => { setPoints(Number(event.target.value)); retryRef.current = null; }} /><button className="primary-button" type="submit" disabled={busy || !studentId || !Number.isInteger(points) || points < 1 || points > 10}><Sparkles size={16} />{busy ? "Ekleniyor…" : "Puan ekle"}</button><button className="aq-deduct-button" type="button" disabled={busy || !studentId || !Number.isInteger(points) || points < 1 || points > 10 || points > (data.students.find((student) => student.id === studentId)?.points ?? 0)} onClick={() => { void award(undefined, true); }}>Puan sil</button></form></section>}
     </div><p className="aq-notice" role="status" aria-live="polite">{notice}</p>
   </section>;
 }

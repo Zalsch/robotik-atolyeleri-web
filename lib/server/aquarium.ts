@@ -22,7 +22,7 @@ export async function loadAquarium(db: Db, actor: AppUser, classId: string) {
       .in("id", group).eq("role", "student").eq("active", true).order("id").range(from, to)))),
     allRows(async (from, to) => db.from("aquarium_scores").select("student_id,points").eq("class_id", classId)
       .order("student_id").range(from, to)),
-    db.from("aquarium_rewards").select("id,student_id,points,created_at").eq("class_id", classId)
+    db.from("aquarium_rewards").select("id,student_id,points,created_at").eq("class_id", classId).gt("points", 0)
       .order("created_at", { ascending: false }).order("id").limit(100),
   ]);
   throwDbError(rewardsResult.error);
