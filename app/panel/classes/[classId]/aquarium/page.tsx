@@ -14,7 +14,7 @@ export default async function AquariumPage({ params }: { params: Promise<{ class
   try {
     const { actor, db } = await requireActor();
     await aquariumClass(db, actor, classId);
-    return <><PanelHeader actor={{ id: actor.id, role: actor.role, username: actor.username, displayName: actor.display_name }} /><AquariumClient key={classId} classId={classId} /></>;
+    return <><PanelHeader actor={{ id: actor.id, role: actor.role, username: actor.username, displayName: actor.display_name }} /><main className="panel-main"><AquariumClient key={classId} classId={classId} /></main></>;
   } catch (error) {
     if (error instanceof HttpError && error.status === 401) redirect("/sign-in");
     if (error instanceof HttpError && error.status === 403) redirect("/panel/aquarium");
