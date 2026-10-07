@@ -172,6 +172,25 @@ try {
   if (assignmentStatus.rows[0].status !== "getirdi" || assignmentStatus.rows[0].marked_by !== teacher2) {
     throw new Error("Equal teacher rights or assignment status update failed");
   }
+  const rewardId = "00000000-0000-4000-8000-000000000021";
+  await expectFailure("unassigned teacher awards aquarium points", () => db.query(
+    "select * from public.award_aquarium_points($1,$2,$3,3,$4)", [teacher3, classId, studentId, rewardId]));
+  await expectFailure("student awards aquarium points", () => db.query(
+    "select * from public.award_aquarium_points($1,$2,$3,3,$4)", [studentId, classId, studentId, rewardId]));
+  await expectFailure("student outside class gets aquarium points", () => db.query(
+    "select * from public.award_aquarium_points($1,$2,$3,3,$4)", [teacher1, classId, student, rewardId]));
+  await expectFailure("invalid aquarium points", () => db.query(
+    "select * from public.award_aquarium_points($1,$2,$3,11,$4)", [teacher1, classId, studentId, rewardId]));
+  const reward = await db.query("select * from public.award_aquarium_points($1,$2,$3,3,$4)", [teacher1, classId, studentId, rewardId]);
+  const retry = await db.query("select * from public.award_aquarium_points($1,$2,$3,3,$4)", [teacher1, classId, studentId, rewardId]);
+  if (Number(reward.rows[0].total_points) !== 3 || Number(retry.rows[0].total_points) !== 3) throw new Error("Aquarium retry awarded twice");
+  await expectFailure("request id reused with different amount", () => db.query(
+    "select * from public.award_aquarium_points($1,$2,$3,4,$4)", [teacher1, classId, studentId, rewardId]));
+  const secondReward = await db.query("select * from public.award_aquarium_points($1,$2,$3,2,$4)", [teacher2, classId, studentId, "00000000-0000-4000-8000-000000000022"]);
+  if (Number(secondReward.rows[0].total_points) !== 5) throw new Error("Co-teacher award lost points");
+  const aquariumRls = await db.query("select relrowsecurity from pg_class where oid in ('public.aquarium_scores'::regclass,'public.aquarium_rewards'::regclass)");
+  if (aquariumRls.rows.some(row => !row.relrowsecurity)) throw new Error("Aquarium tables require RLS");
+
   const subscription = await db.query(
     "insert into public.push_subscriptions(student_id,endpoint,p256dh,auth,session_version) values ($1,'https://fcm.googleapis.com/fcm/send/test','abcdefghijklmnopqrstuvwxyz0123456789','abcdefghijklmnop',(select session_version from public.app_users where id=$1)) returning id",
     [studentId],
@@ -240,6 +259,9 @@ try {
   await expectFailure("anonymous legacy identity read", () => db.query("select * from app_private.legacy_identity_links"));
   await expectFailure("anonymous push subscription read", () => db.query("select * from public.push_subscriptions"));
   await expectFailure("anonymous push RPC", () => db.query("select * from public.claim_push_delivery(1)"));
+  await expectFailure("anonymous aquarium score read", () => db.query("select * from public.aquarium_scores"));
+  await expectFailure("anonymous aquarium award", () => db.query(
+    "select * from public.award_aquarium_points($1,$2,$3,3,$4)", [teacher1, classId, studentId, rewardId]));
   await db.exec("reset role");
 
   console.log("Schema checks passed: accounts, learning, outbox retry/version, push eligibility, role boundaries and anonymous denial.");

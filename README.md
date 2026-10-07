@@ -9,10 +9,12 @@ Robotik Atölyeleri için mobil uyumlu öğrenci takip uygulaması. Yönetici s�
 | Rol | Başlıca işlemler |
 | --- | --- |
 | Yönetici | Öğretmen hesabı ve sınıf oluşturma, sınıfa en fazla iki öğretmen atama |
-| Öğretmen | Atandığı sınıfa öğrenci ekleme, şifre yenileme, müfredat, ders programı, yoklama, ödev ve duyuru yönetimi |
-| Öğrenci / veli | Dersleri, konu ilerlemesini, devam oranını, ödev durumunu ve duyuruları görme |
+| Öğretmen | Atandığı sınıfa öğrenci ekleme, şifre yenileme, müfredat, ders programı, yoklama, ödev ve duyuru yönetimi, akvaryumda puan ekleme |
+| Öğrenci / veli | Dersleri, konu ilerlemesini, devam oranını, ödev durumunu ve duyuruları görme, sınıf akvaryumunu izleme ve kendi balığını çağırma |
 
 Müfredat konularında kısa açıklama ve Google Drive PDF bağlantısı bulunabilir. Öğretmen PDF bağlantısını müfredatı kullanan tüm sınıflar için açıp kapatır. Yoklama `var` / `yok`, fiziksel ödev teslimi `getirdi` / `getirmedi` olarak işaretlenir. Uygulama ana ekrana eklenebilir; bildirim izni veren destekli öğrenci cihazlarına sınıf duyuruları Web Push ile gönderilir.
+
+Her sınıfın `/panel/aquarium` menüsünden açılan bir akvaryumu vardır. Aktif sınıf kayıtları öğrenci başına bir balık oluşturur. Öğretmen yalnız atandığı sınıfta 1–10 puan ekleyebilir; puanlar kalıcıdır ve yem animasyonu puan harcamaz. Öğrenciler puan veya görünüm düzenleyemez; akvaryuma dokunarak yalnız kendi balığını o noktaya çağırır. Açık akvaryum, sınıf ve puan bilgilerini 30 saniyede bir yeniler; ilk açılış eski ödülleri yeniden oynatmaz. İstek kimliği aynı olan yeniden denemeler ikinci kez puan yazmaz.
 
 Dışarıdan hesap kaydı, ayrı veli hesabı ve uygulama içinden ödev dosyası teslimi yoktur.
 
